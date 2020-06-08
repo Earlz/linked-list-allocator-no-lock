@@ -6,23 +6,18 @@
 #[macro_use]
 extern crate std;
 
-#[cfg(feature = "use_spin")]
-extern crate spinning_top;
-
 extern crate alloc;
 
 use alloc::alloc::Layout;
 #[cfg(feature = "alloc_ref")]
 use alloc::alloc::{AllocErr, AllocInit, AllocRef, MemoryBlock};
-#[cfg(feature = "use_spin")]
 use core::alloc::GlobalAlloc;
-use core::mem;
-#[cfg(feature = "use_spin")]
 use core::ops::Deref;
+use core::ops::DerefMut;
+use core::mem;
 use core::ptr::NonNull;
+use core::cell::UnsafeCell;
 use hole::{Hole, HoleList};
-#[cfg(feature = "use_spin")]
-use spinning_top::Spinlock;
 
 mod hole;
 #[cfg(test)]
@@ -185,22 +180,20 @@ unsafe impl AllocRef for Heap {
     }
 }
 
-#[cfg(feature = "use_spin")]
-pub struct LockedHeap(Spinlock<Heap>);
+pub struct UnlockedHeap(UnsafeCell<Heap>);
 
-#[cfg(feature = "use_spin")]
-impl LockedHeap {
+impl UnlockedHeap {
     /// Creates an empty heap. All allocate calls will return `None`.
-    pub const fn empty() -> LockedHeap {
-        LockedHeap(Spinlock::new(Heap::empty()))
+    pub const fn empty() -> UnlockedHeap {
+        UnlockedHeap(UnsafeCell::new(Heap::empty()))
     }
 
     /// Creates a new heap with the given `bottom` and `size`. The bottom address must be valid
     /// and the memory in the `[heap_bottom, heap_bottom + heap_size)` range must not be used for
     /// anything else. This function is unsafe because it can cause undefined behavior if the
     /// given address is invalid.
-    pub unsafe fn new(heap_bottom: usize, heap_size: usize) -> LockedHeap {
-        LockedHeap(Spinlock::new(Heap {
+    pub unsafe fn new(heap_bottom: usize, heap_size: usize) -> UnlockedHeap {
+        UnlockedHeap(UnsafeCell::new(Heap {
             bottom: heap_bottom,
             size: heap_size,
             used: 0,
@@ -208,30 +201,27 @@ impl LockedHeap {
         }))
     }
 }
+unsafe impl core::marker::Sync for UnlockedHeap{}
 
-#[cfg(feature = "use_spin")]
-impl Deref for LockedHeap {
-    type Target = Spinlock<Heap>;
+impl Deref for UnlockedHeap {
+    type Target = UnsafeCell<Heap>;
 
-    fn deref(&self) -> &Spinlock<Heap> {
-        &self.0
+    fn deref(&self) -> &UnsafeCell<Heap> {
+        unsafe{
+            &self.0
+        }
     }
 }
 
-#[cfg(feature = "use_spin")]
-unsafe impl GlobalAlloc for LockedHeap {
+unsafe impl GlobalAlloc for UnlockedHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        self.0
-            .lock()
-            .allocate_first_fit(layout)
+        (*self.0.get()).allocate_first_fit(layout)
             .ok()
             .map_or(0 as *mut u8, |allocation| allocation.as_ptr())
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.0
-            .lock()
-            .deallocate(NonNull::new_unchecked(ptr), layout)
+        (*self.0.get()).deallocate(NonNull::new_unchecked(ptr), layout)
     }
 }
 

@@ -1,22 +1,12 @@
 [package]
-name = "linked_list_allocator"
+name = "linked_list_allocator_no_lock"
 version = "0.8.4"
-authors = ["Philipp Oppermann <dev@phil-opp.com>"]
+authors = ["Philipp Oppermann <dev@phil-opp.com>", "Jordan Earls <earlz@qtum.info>"]
 license = "Apache-2.0/MIT"
 
-description = "Simple allocator usable for no_std systems. It builds a linked list from the freed blocks and thus needs no additional data structures."
+description = "Simple allocator usable for no_std systems without locking. It builds a linked list from the freed blocks and thus needs no additional data structures."
 keywords = ["allocator", "no_std", "malloc", "heap", "kernel"]
 
-repository = "https://github.com/phil-opp/linked-list-allocator"
-documentation = "https://docs.rs/crate/linked_list_allocator"
-homepage = "http://os.phil-opp.com/kernel-heap.html#a-better-allocator"
+repository = "https://github.com/earlz/linked-list-allocator_no_lock"
+documentation = "https://docs.rs/crate/linked_list_allocator_no_lock"
 
-[features]
-default = ["use_spin"]
-use_spin = ["spinning_top"]
-alloc_ref = []
-
-[dependencies.spinning_top]
-version = "0.1.0"
-features = ["nightly"]
-optional = true
